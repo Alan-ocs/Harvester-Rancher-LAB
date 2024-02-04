@@ -1,0 +1,84 @@
+---
+- name: Provision VMs on Proxmox
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Check if Harvester ISO exists
+      stat:
+        path: "/var/lib/vz/template/iso/harvester-v1.3.0-rc1-amd64.iso"
+      register: harvester_iso
+      delegate_to: localhost
+
+    - name: Download Harvester ISO
+      get_url:
+        url: "https://releases.rancher.com/harvester/v1.3.0-rc1/harvester-v1.3.0-rc1-amd64.iso"
+        dest: "/var/lib/vz/template/iso/harvester-v1.3.0-rc1-amd64.iso"
+      when: not harvester_iso.stat.exists
+      delegate_to: localhost
+
+    - name: Check if Ubuntu ISO exists
+      stat:
+        path: "/var/lib/vz/template/iso/ubuntu-23.10-live-server-amd64.iso"
+      register: ubuntu_iso
+      delegate_to: localhost
+
+    - name: Download Ubuntu ISO
+      get_url:
+        url: "https://releases.ubuntu.com/23.10/ubuntu-23.10-live-server-amd64.iso"
+        dest: "/var/lib/vz/template/iso/ubuntu-23.10-live-server-amd64.iso"
+      when: not ubuntu_iso.stat.exists
+      delegate_to: localhost
+
+    - name: Ensure required packages are installed
+      package:
+        name: "{{ item }}"
+        state: present
+      with_items:
+        - curl
+        - qemu-utils
+      delegate_to: localhost
+
+    - name: Create Ubuntu VM (Rancher)
+      proxmox:
+        node: pve
+        vmid: 101
+        state: present
+        ostemplate: local:iso/ubuntu-23.10-live-server-amd64.iso
+        memory: 4096
+        cores: 2
+        net0: virtio,bridge=vmbr0
+        hostname: rancher
+        searchdomain: example.com
+        password: your_password_here
+        onboot: yes
+        cloudinit: |
+          #cloud-config
+          users:
+            - name: rancher
+              ssh_authorized_keys:
+                - ssh-rsa <sua-chave-ssh-pública>
+          packages:
+            - git
+            - docker.io
+            - docker-compose
+      delegate_to: localhost
+
+    - name: Create Harvester VM
+      proxmox:
+        node: pve
+        vmid: 102
+        state: present
+        ostemplate: local:iso/harvester-v1.3.0-rc1-amd64.iso
+        memory: 20480
+        cores: 6
+        net0: virtio,bridge=vmbr0
+        net1: virtio,bridge=vmbr1
+        hostname: harvester
+        searchdomain: example.com
+        password: your_password_here
+        onboot: yes
+        agent: 1
+        disks:
+          - size: 300G
+            storage: local
+      delegate_to: localhost
