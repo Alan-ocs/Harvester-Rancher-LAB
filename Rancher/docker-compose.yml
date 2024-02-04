@@ -1,0 +1,23 @@
+version: '3'
+services:
+  rancher:
+    image: rancher/rancher
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "80:80"
+      - "443:443"
+    container_name: rancher
+    volumes:
+      - rancher_data:/var/lib/rancher
+    networks:
+      - rancher_net
+    environment:
+      - CATTLE_URL=http://rancher.local
+      - CATTLE_CA_CHECKSUM=true
+
+networks:
+  rancher_net:
+
+volumes:
+  rancher_data:
